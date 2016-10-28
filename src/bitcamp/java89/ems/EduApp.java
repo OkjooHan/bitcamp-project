@@ -6,7 +6,8 @@ public class EduApp {
   static Scanner keyScan = new Scanner(System.in);
 
   public static void main(String[] args) {
-    TextbookController.keyScan = keyScan;
+    //TextbookController.keyScan = keyScan;
+    TextbookController controller = new TextbookController(keyScan);
     System.out.println("비트캠프 관리시스템에 오신걸 환영합니다.");
 
     loop:
@@ -15,9 +16,9 @@ public class EduApp {
       String command = keyScan.nextLine().toLowerCase();
 
       switch (command) {
-      case "add": TextbookController.doAdd(); break;
-      case "list": TextbookController.doList(); break;
-      case "view": TextbookController.doView(); break;
+      case "add": controller.doAdd(); break;
+      case "list": controller.doList(); break;
+      case "view": controller.doView(); break;
       case "quit":
         System.out.println("안녕!");
         break loop;
