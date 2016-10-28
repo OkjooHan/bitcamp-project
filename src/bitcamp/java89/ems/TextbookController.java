@@ -3,15 +3,43 @@ package bitcamp.java89.ems;
 import java.util.Scanner;
 
 public class TextbookController {
-  Textbook[] books = new Textbook[100];
-  int length = 0;
-  Scanner keyScan;
+  // 아래 인스턴스 변수들은 외부에서 사용할 일이 없기 때문에
+  // private으로 접근을 제한한다.
+  private Textbook[] books = new Textbook[100];
+  private int length = 0;
+  private Scanner keyScan;
 
   public TextbookController(Scanner keyScan) {
     this.keyScan = keyScan;
   }
 
-  public void doAdd() {
+  public void service() {
+    loop:
+    while(true) {
+      System.out.println("1. 교재관리");
+      System.out.println("[add]:추가, [list]:보기, [view]:찾기, [delete]:삭제,"
+                       + " [update]:변경, [main]: 메인메뉴");
+      System.out.print("명령> ");
+      String command = keyScan.nextLine().toLowerCase();
+
+      switch (command) {
+      case "add": this.doAdd(); break;
+      case "list": this.doList(); break;
+      case "view": this.doView(); break;
+      case "delete": this.doDelete(); break;
+      case "update" : this.doUpdate(); break;
+      case "main":
+        break loop;
+      default:
+        System.out.println("지원하지 않는 명령어입니다.");
+        break;
+      }
+    }
+  }
+
+  // 아래 doXXX() 메서드들은 오직 service()에서만 호출하기 때문에
+  // private으로 접근을 제한한다.
+  private void doAdd() {
     while (length < this.books.length) {
       Textbook book = new Textbook();
       System.out.print("교재명(예:자바프로그래밍)? ");
@@ -50,7 +78,7 @@ public class TextbookController {
     }
   }
 
-  public void doList() {
+  private void doList() {
     for (int i = 0; i < length; i++) {
       Textbook book = this.books[i];
       System.out.printf(" 책이름: %s\n 저자: %s\n 출판사: %s\n 가격: %d원\n"
@@ -68,7 +96,7 @@ public class TextbookController {
     }
   }
 
-  public void doView() {
+  private void doView() {
     System.out.printf("조회할 교재명을 입력하세요: ");
     String title = this.keyScan.nextLine().toLowerCase();
     for (int i = 0; i < this.length; i++) {
@@ -88,7 +116,7 @@ public class TextbookController {
     System.out.printf("%s 교재 정보를 찾을 수 없습니다.\n", title);
   }
 
-  public void doDelete() {
+  private void doDelete() {
     System.out.printf("삭제할 교재명을 입력하세요: ");
     String title = this.keyScan.nextLine().toLowerCase();
     for (int i = 0; i < this.length; i++) {
@@ -104,7 +132,7 @@ public class TextbookController {
     System.out.printf("%s 교재 정보를 찾을 수 없습니다.\n", title);
   }
 
-  public void doUpdate() {
+  private void doUpdate() {
     System.out.printf("수정할 교재명을 입력하세요: ");
     String title = this.keyScan.nextLine().toLowerCase();
     for (int i = 0; i < this.length; i++) {
