@@ -1,217 +1,205 @@
-// 모든 예외 처리를 service()에서 수행한다.
-// => 이점: doxxx() 메서드에서 예외처리 코드를 작성할 필요가 없다.
-// => 단점: 각각의 명령어마다 섬세하게 예외를 다룰 수 없다.
-//따라서 예외를 중앙에서 처리할 지 개별적으로 처리할 지
-//아니면 섞을지 개발자가 선택하면 된다.
-package bitcamp.java89.ems;
+/* 작업내용 : 직렬화 적용
+ */
+package bitcamp.java89.ems.server.controller;
 
-import java.util.Scanner;
-import java.util.ArrayList;
+import java.io.EOFException;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.EOFException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Scanner;
+
+import bitcamp.java89.ems.server.vo.Phonebook;
+import bitcamp.java89.ems.server.vo.Textbook;
 
 public class TextbookController {
+  private Scanner in;
+  private PrintStream out;
   private ArrayList<Textbook> list;
-  private int length;
-  private Scanner keyScan;
+//  private int length;
   private boolean changed;
+  String filePath = "./src/bitcamp/java89/ems/Textbook_v1.6.data";
 
-  public TextbookController(Scanner keyScan, String filePath) {
-  // public TextbookController(Scanner keyScan) {
-    length = 0;
-    this.keyScan = keyScan;
+  public TextbookController(Scanner in, PrintStream out) {
+    this.in = in;
+    this.out = out;
     list = new ArrayList<Textbook>();
     changed = false;
-    doLoad(filePath);
+    doLoad();
   }
 
-  public void service() {
-    loop:
+  public boolean service() {
     while(true) {
-      System.out.println("1. 교재관리");
-      System.out.println("[add]:추가 / [list]:보기 / [view]:찾기 / [delete]:삭제 /"
+      out.println("1. 교재관리");
+      out.println("[add]:추가 / [list]:보기 / [view]:찾기 / [delete]:삭제 /"
                        + " [update]:변경 / [main]: 메인메뉴");
-      System.out.print("명령> ");
-      String command = keyScan.nextLine().toLowerCase();
+      out.println("명령> ");
+      out.println();
+      String command[] = in.nextLine().toLowerCase().split("\\?");
       try {
-        switch (command) {
-        case "add": this.doAdd(); break;
+        switch (command[0]) {
+        case "add": this.doAdd(command[1]); break;
         case "list": this.doList(); break;
-        case "view": this.doView(); break;
-        case "delete": this.doDelete(); break;
-        case "update" : this.doUpdate(); break;
-        case "main":
-          break loop;
+        case "view": this.doView(command[1]); break;
+        case "delete": this.doDelete(command[1]); break;
+        case "update" : this.doUpdate(command[1]); break;
+        case "main": doQuit(); return true;
+        case "quit": doQuit(); return false;
         default:
           System.out.println("지원하지 않는 명령어입니다.");
         }
       } catch (IndexOutOfBoundsException e) {
+        e.printStackTrace();
         System.out.println("인덱스가 유효하지 않습니다");
       } catch (Exception e) {
+        e.printStackTrace();
         System.out.println("실행 중 오류가 발생했습니다.");
       }
     }//while
   }
+  
+  private void doQuit() {
+    if (isChanged())
+      doSave();
+//    System.out.println("Good bye!");
+  }
 
   // 아래 doXXX() 메서드들은 오직 service()에서만 호출하기 때문에
   // private으로 접근을 제한한다.
-  private void doAdd() {
-    while (true) {
-      Textbook book = new Textbook();
-      System.out.print("교재명(예:자바프로그래밍)? ");
-      book.title = this.keyScan.nextLine();
-
-      System.out.print("저자(예:홍길동)? ");
-      book.author = this.keyScan.nextLine();
-
-      System.out.print("출판사(예:비트출판사)? ");
-      book.press = this.keyScan.nextLine();
-
-      while (true) {
-        try {
-          System.out.print("가격(예:30000)? ");
-          book.price = Integer.parseInt(this.keyScan.nextLine());
-          break;
-        } catch (Exception e) {
-          System.out.println("정수 값을 입력하세요.");
-        }
-      }//while
-
-      System.out.print("쪽수(예:348)? ");
-      book.pages = Integer.parseInt(this.keyScan.nextLine());
-
-      System.out.print("재고수량(예:32)? ");
-      book.stock = Integer.parseInt(this.keyScan.nextLine());
-
-      System.out.print("강좌명(예:자바&DB)? ");
-      book.className = this.keyScan.nextLine();
-
-      System.out.print("부록(y/n)? ");
-      book.suppl = (this.keyScan.nextLine().equals("y") ? true : false);
-
-      System.out.print("배부여부(y/n)? ");
-      book.distr = (this.keyScan.nextLine().equals("y") ? true : false);
-
-      list.add(book);
-      changed = true;
-
-      System.out.printf("계속 입력하시겠습니까(y/n)? ");
-      if (!this.keyScan.nextLine().equals("y")) {
-        break;
+  //add?title=javaprogramming&author=aaa&press=bitpress&price=30000&pages=200&stock=3&className=bit89&suppl=y&distr=n
+  //add?title=db study&author=bbb&press=bitpress&price=10000&pages=100&stock=1&className=bit89&suppl=y&distr=n
+  private void doAdd(String params) {
+    System.out.println(params);
+    String[] values = params.split("&");
+    HashMap<String, String> paramMap = new HashMap<>();
+    
+    for (String value : values) {
+      String[] kv = value.split("=");
+      paramMap.put(kv[0], kv[1]);
+    }
+    
+    Textbook book = new Textbook();
+    book.setTitle(paramMap.get("title"));
+    book.setAuthor(paramMap.get("author"));
+    book.setPress(paramMap.get("press"));
+    book.setPrice(Integer.parseInt(paramMap.get("price")));
+    book.setPages(Integer.parseInt(paramMap.get("pages")));
+    book.setStock(Integer.parseInt(paramMap.get("stock")));
+    book.setClassName(paramMap.get("className"));
+    book.setSuppl(paramMap.get("suppl").equals("y")? true : false);
+    book.setDistr(paramMap.get("distr").equals("y")? true : false);
+    
+    if (existTitle(book.getTitle()) != null) {
+      out.println("이메일이 이미 존재합니다. 등록을 취소합니다.");
+      return;
+    }
+    list.add(book);
+    changed = true;
+    out.println("등록하였습니다.");
+  }
+  
+  private Textbook existTitle(String title) {
+    for (Textbook book : list) {
+      if (book.getTitle().toLowerCase().equals(title.toLowerCase())) {
+        return book;
       }
-    }//while
+    }
+    return null;
   }
 
   private void doList() {
     for (Textbook book : list) {
-      System.out.printf(" %s, %s, %s, %d원, %d쪽, %d남음, %s,"
-      + " %s, %s\n------------------------------------------------\n",
-      book.title,
-      book.author,
-      book.press,
-      book.price,
-      book.pages,
-      book.stock,
-      (book.suppl ? "부록있음" : "부록없음"),
-      book.className,
-      (book.distr ? "배부함" : "배부안함"));
+      out.println(String.format("%s, %s, %s, %d원, %d쪽, %d남음, %s,"
+          + " %s, %s",
+          book.getTitle(),
+          book.getAuthor(),
+          book.getPress(),
+          book.getPrice(),
+          book.getPages(),
+          book.getStock(),
+          (book.isSuppl() ? "부록있음" : "부록없음"),
+          book.getClassName(),
+          (book.isDistr() ? "배부함" : "배부안함")));
     }
   }
 
-  private void doView() {
-    System.out.print("조회할 교재의 인덱스를 입력하세요: ");
-    int index = Integer.parseInt(this.keyScan.nextLine());
-    Textbook book = list.get(index);
+  private void doView(String params) {
+    System.out.println(params);
+    String[] values = params.split("=");
 
-    System.out.printf("교재명: %s\n", book.title);
-    System.out.printf("저자: %s\n", book.author);
-    System.out.printf("출판사: %s\n", book.press);
-    System.out.printf("가격: %d\n", book.price);
-    System.out.printf("쪽수: %d\n", book.pages);
-    System.out.printf("재고수량: %d\n", book.stock);
-    System.out.printf("강좌명: %s\n", book.className);
-    System.out.printf("부록: %b\n", (book.suppl ? "부록있음" : "부록없음"));
-    System.out.printf("배부: %s\n", (book.distr ? "배부함" : "배부안함"));
-    System.out.println("-----------------------");
+    for (Textbook book : list) {
+      if (book.getTitle().equals(values[1])) {
+        out.println("-----------------------");
+        out.println("교재명: " + book.getTitle());
+        out.println("저자: " + book.getAuthor());
+        out.println("출판사: " + book.getPress());
+        out.println("가격: " + book.getPrice());
+        out.println("쪽수: " + book.getPages());
+        out.println("재고수량: " + book.getStock());
+        out.println("강좌명: " + book.getClassName());
+        out.println("부록: " + (book.isSuppl() ? "부록있음" : "부록없음"));
+        out.println("배부: " + (book.isDistr() ? "배부함" : "배부안함"));
+        out.println("-----------------------");
+        return;
+      }
+    }
+    out.println("해당 이름의 교재가 없습니다.");
   }
 
-  private void doDelete() {
-    System.out.printf("삭제할 교재명의 인덱스를 입력하세요: ");
-    int index = Integer.parseInt(keyScan.nextLine());
-
-    //LinkedList 클래스를 비롯한 클래스를 생성하면 남이 사용한다는 전제임.
-    //LinkedList 클래스에도 인덱스 유효를 체크하지만, 이곳에 동일 내용이 있다고 해서
-    //클래스에서 지우면 다른 사용자가 유효체크 없이 아무 값이나 넣어도 유효 체크를 할 수 없다.
-    // if (index < 0 || index >= list.size()) {
-    //   System.out.println("인덱스가 유효하지 않습니다.");
-    //   return;
-    // }
-
-    Textbook deleteBook = list.remove(index);
+  private void doDelete(String params) {
+    System.out.println(params);
+    String deleteTitle = (params.split("="))[1];
+    
+    Textbook deleteBook = existTitle(deleteTitle);
+    
     if (deleteBook == null) {
+      out.println("해당 이름의 교재가 없습니다.");
       return;
     }
+    
+    list.remove(deleteBook);
+    
     changed = true;
-    System.out.printf("%s 교재 정보를 삭제하였습니다.\n", deleteBook.title);
+    out.println("삭제하였습니다.");
   }
 
-  private void doUpdate() {
-    System.out.printf("수정할 교재의 인덱스를 입력하세요: ");
-    int index = Integer.parseInt(this.keyScan.nextLine());
-    Textbook oldBook = list.get(index);
-
-    Textbook book = new Textbook();
-
-    book.title = oldBook.title;
-
-    System.out.printf("저자(%s)? ", oldBook.author);
-    book.author = this.keyScan.nextLine();
-
-    System.out.printf("출판사(%s)? ", oldBook.press);
-    book.press = this.keyScan.nextLine();
-
-    while (true) {
-      try {
-        System.out.printf("가격(%d)? ", oldBook.price);
-        book.price = Integer.parseInt(this.keyScan.nextLine());
-
-        break;
-      } catch (Exception e) {
-        System.out.println("정수 값을 입력하세요.");
-      }
-    }//while
-
-    System.out.printf("쪽수(%d)? ", oldBook.pages);
-    book.pages = Integer.parseInt(this.keyScan.nextLine());
-
-    System.out.printf("재고수량(%d)? ", oldBook.stock);
-    book.stock = Integer.parseInt(this.keyScan.nextLine());
-
-    System.out.printf("강좌명(%s)? ", oldBook.className);
-    book.className = this.keyScan.nextLine();
-
-    System.out.printf("부록(y/n)? ");
-    book.suppl = (this.keyScan.nextLine().equals("y") ? true : false);
-
-    System.out.printf("배부여부(y/n)? ");
-    book.distr = (this.keyScan.nextLine().equals("y") ? true : false);
-
-    System.out.printf("저장하시겠습니까(y/n)? ");
-    if (!this.keyScan.nextLine().toLowerCase().equals("y")) {
-      System.out.println("변경을 취소하였습니다.");
-    } else {
-      list.set(index, book);
-      System.out.println("저장하였습니다.");
-      changed = true;
+  //update?title=db study&author=ccc&press=bitpress&price=10000&pages=400&stock=4&className=bit89&suppl=y&distr=n
+  private void doUpdate(String params) {
+    System.out.println(params);
+    String[] values = params.split("&");
+    HashMap<String, String> paramMap = new HashMap<>();
+    
+    for (String value : values) {
+      String[] kv = value.split("=");
+      paramMap.put(kv[0], kv[1]);
     }
+    
+    Textbook book = existTitle(paramMap.get("title"));
+    if (book == null) {
+      out.println("해당 이름의 교재가 없습니다.");
+      return;
+    }
+    book.setTitle(paramMap.get("title"));
+    book.setAuthor(paramMap.get("author"));
+    book.setPress(paramMap.get("press"));
+    book.setPrice(Integer.parseInt(paramMap.get("price")));
+    book.setPages(Integer.parseInt(paramMap.get("pages")));
+    book.setStock(Integer.parseInt(paramMap.get("stock")));
+    book.setClassName(paramMap.get("className"));
+    book.setSuppl(paramMap.get("suppl").equals("y")? true : false);
+    book.setDistr(paramMap.get("distr").equals("y")? true : false);
+    
+    out.println("변경하였습니다.");
+    changed = true;
   }
-
-  private void doLoad(String filePath) {
+    
+  @SuppressWarnings("unchecked")
+  private void doLoad() {
     try {
       File file = new File(filePath);
       if(!file.exists()) {
@@ -222,29 +210,16 @@ public class TextbookController {
     }
 
     FileInputStream fis = null;
-    DataInputStream in = null;
+    ObjectInputStream in = null;
     try {
       fis = new FileInputStream(filePath);
-      in = new DataInputStream(fis);
-      while (true) {
-      //while (fis.available() > 0) {
-      //while (fis.read() != -1)
-        Textbook book = new Textbook();
-        book.title = in.readUTF();
-        book.author = in.readUTF();
-        book.press = in.readUTF();
-        book.price = in.readInt();
-        book.pages = in.readInt();
-        book.stock = in.readInt();
-        book.className = in.readUTF();
-        book.suppl = in.readBoolean();
-        book.distr = in.readBoolean();
-        list.add(book);
-      }
+      in = new ObjectInputStream(fis);
+      
+      list = (ArrayList<Textbook>)in.readObject();
     } catch (EOFException e) {
       // 파일 생성 후 데이터 없음 or 파일을 모두 읽음
-    } catch (IOException e) {
-      //e.printStackTrace();
+    } catch (Exception e) {
+      e.printStackTrace();
       System.out.println("데이터를 정상적으로 로드하지 못했습니다.");
     } finally {
       try {
@@ -254,22 +229,13 @@ public class TextbookController {
     }
   }
 
-  public void doSave(String filePath) {
+  public void doSave() {
     try {
       FileOutputStream fos = new FileOutputStream(filePath);
-      DataOutputStream out = new DataOutputStream(fos);
+      ObjectOutputStream out = new ObjectOutputStream(fos);
 
-      for (Textbook book : list) {
-        out.writeUTF(book.title);
-        out.writeUTF(book.author);
-        out.writeUTF(book.press);
-        out.writeInt(book.price);
-        out.writeInt(book.pages);
-        out.writeInt(book.stock);
-        out.writeUTF(book.className);
-        out.writeBoolean(book.suppl);
-        out.writeBoolean(book.distr);
-      }
+      out.writeObject(list);
+      
       out.close();
       fos.close();
       changed = false;
